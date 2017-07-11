@@ -41,6 +41,13 @@ static const struct property_entry max17047_props[] = {
 	{ }
 };
 
+static const struct property_entry fusb302_props[] = {
+	PROPERTY_ENTRY_STRING("fcs,extcon-name", "cht_wcove_pwrsrc"),
+	PROPERTY_ENTRY_STRING("fcs,vbus-regulator-name",
+			      "regulator-bq24190-usb-vbus"),
+	{ }
+};
+
 static int cht_int33fe_probe(struct i2c_client *client)
 {
 	struct device *dev = &client->dev;
@@ -84,7 +91,8 @@ static int cht_int33fe_probe(struct i2c_client *client)
 		return -EPROBE_DEFER; /* Wait for the i2c-adapter to load */
 
 	memset(&board_info, 0, sizeof(board_info));
-	strlcpy(board_info.type, "fusb302", I2C_NAME_SIZE);
+	strlcpy(board_info.type, "typec_fusb302", I2C_NAME_SIZE);
+	board_info.properties = fusb302_props;
 	board_info.irq = fusb302_irq;
 
 	data->fusb302 = i2c_acpi_new_device(dev, 2, &board_info);
