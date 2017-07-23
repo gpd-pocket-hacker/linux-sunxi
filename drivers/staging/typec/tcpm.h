@@ -17,6 +17,7 @@
 
 #include <linux/bitops.h>
 #include <linux/extcon.h>
+#include <linux/power_supply.h>
 #include <linux/usb/typec.h>
 #include "pd.h"
 
@@ -129,6 +130,10 @@ struct tcpc_dev {
 	struct tcpc_mux_dev *mux;
 	/* Used by tcpm_get_usb2_current_limit_extcon helpers */
 	struct extcon_dev *usb2_extcon;
+	/* Used by tcpm_set_current_limit_psy helpers */
+	struct power_supply *psy;
+	u32 current_limit;
+	u32 supply_voltage;
 };
 
 struct tcpm_port;
@@ -154,7 +159,11 @@ void tcpm_pd_transmit_complete(struct tcpm_port *port,
 void tcpm_pd_hard_reset(struct tcpm_port *port);
 void tcpm_tcpc_reset(struct tcpm_port *port);
 
+int tcpm_register_psy(struct device *dev, struct tcpc_dev *tcpc,
+		      const char *name);
+
 /* Generic (helper) implementations for some tcpc_dev callbacks */
 int tcpm_get_usb2_current_limit_extcon(struct tcpc_dev *tcpc);
+int tcpm_set_current_limit_psy(struct tcpc_dev *tcpc, u32 max_ma, u32 mv);
 
 #endif /* __LINUX_USB_TCPM_H */
