@@ -853,17 +853,6 @@ done:
 	return ret;
 }
 
-static int tcpm_set_current_limit(struct tcpc_dev *dev, u32 max_ma, u32 mv)
-{
-	struct fusb302_chip *chip = container_of(dev, struct fusb302_chip,
-						 tcpc_dev);
-
-	fusb302_log(chip, "current limit: %d ma, %d mv (not implemented)",
-		    max_ma, mv);
-
-	return 0;
-}
-
 static int fusb302_pd_tx_flush(struct fusb302_chip *chip)
 {
 	return fusb302_i2c_set_bits(chip, FUSB_REG_CONTROL0,
@@ -1208,7 +1197,7 @@ static void init_tcpc_dev(struct tcpc_dev *fusb302_tcpc_dev)
 	fusb302_tcpc_dev->set_polarity = tcpm_set_polarity;
 	fusb302_tcpc_dev->set_vconn = tcpm_set_vconn;
 	fusb302_tcpc_dev->set_vbus = tcpm_set_vbus;
-	fusb302_tcpc_dev->set_current_limit = tcpm_set_current_limit;
+	fusb302_tcpc_dev->set_current_limit = tcpm_set_current_limit_psy;
 	fusb302_tcpc_dev->set_pd_rx = tcpm_set_pd_rx;
 	fusb302_tcpc_dev->set_roles = tcpm_set_roles;
 	fusb302_tcpc_dev->start_drp_toggling = tcpm_start_drp_toggling;
@@ -1717,6 +1706,11 @@ static int fusb302_probe(struct i2c_client *client,
 		if (!chip->tcpc_dev.usb2_extcon)
 			return -EPROBE_DEFER;
 	}
+
+	ret = tcpm_register_psy(chip->dev, &chip->tcpc_dev,
+				"fusb302-typec-source");
+	if (ret < 0)
+		return ret;
 
 	ret = fusb302_debugfs_init(chip);
 	if (ret < 0)
