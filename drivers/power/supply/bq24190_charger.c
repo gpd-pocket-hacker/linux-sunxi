@@ -1490,7 +1490,7 @@ static void bq24190_extcon_work(struct work_struct *work)
 	struct bq24190_dev_info *bdi =
 		container_of(work, struct bq24190_dev_info, extcon_work.work);
 	int error, iinlim = 0;
-	u8 v;
+	/* u8 v; */
 
 	error = pm_runtime_get_sync(bdi->dev);
 	if (error < 0) {
@@ -1518,6 +1518,7 @@ static void bq24190_extcon_work(struct work_struct *work)
 			dev_err(bdi->dev, "Can't set IINLIM: %d\n", error);
 	}
 
+#if 0
 	/* if no charger found and in USB host mode, set OTG 5V boost, else normal */
 	if (!iinlim && extcon_get_state(bdi->extcon, EXTCON_USB_HOST) == 1)
 		v = BQ24190_REG_POC_CHG_CONFIG_OTG;
@@ -1530,6 +1531,7 @@ static void bq24190_extcon_work(struct work_struct *work)
 				   v);
 	if (error < 0)
 		dev_err(bdi->dev, "Can't set CHG_CONFIG: %d\n", error);
+#endif
 
 	pm_runtime_mark_last_busy(bdi->dev);
 	pm_runtime_put_autosuspend(bdi->dev);
