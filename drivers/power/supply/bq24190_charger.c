@@ -16,6 +16,8 @@
 #include <linux/of_device.h>
 #include <linux/pm_runtime.h>
 #include <linux/power_supply.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/machine.h>
 #include <linux/workqueue.h>
 #include <linux/gpio.h>
 #include <linux/i2c.h>
@@ -502,6 +504,121 @@ static int bq24190_sysfs_create_group(struct bq24190_dev_info *bdi)
 }
 
 static inline void bq24190_sysfs_remove_group(struct bq24190_dev_info *bdi) {}
+#endif
+
+#ifdef CONFIG_REGULATOR
+static int bq24190_vbus_enable(struct regulator_dev *dev)
+{
+	struct bq24190_dev_info *bdi = rdev_get_drvdata(dev);
+	int ret;
+
+	ret = pm_runtime_get_sync(bdi->dev);
+	if (ret < 0) {
+		dev_warn(bdi->dev, "pm_runtime_get failed: %i\n", ret);
+		pm_runtime_put_noidle(bdi->dev);
+		return ret;
+	}
+
+	ret = bq24190_write_mask(bdi, BQ24190_REG_POC,
+				 BQ24190_REG_POC_CHG_CONFIG_MASK,
+				 BQ24190_REG_POC_CHG_CONFIG_SHIFT,
+				 BQ24190_REG_POC_CHG_CONFIG_OTG);
+
+	pm_runtime_mark_last_busy(bdi->dev);
+	pm_runtime_put_autosuspend(bdi->dev);
+
+	return ret;
+}
+
+static int bq24190_vbus_disable(struct regulator_dev *dev)
+{
+	struct bq24190_dev_info *bdi = rdev_get_drvdata(dev);
+	int ret;
+
+	ret = pm_runtime_get_sync(bdi->dev);
+	if (ret < 0) {
+		dev_warn(bdi->dev, "pm_runtime_get failed: %i\n", ret);
+		pm_runtime_put_noidle(bdi->dev);
+		return ret;
+	}
+
+	ret = bq24190_write_mask(bdi, BQ24190_REG_POC,
+				 BQ24190_REG_POC_CHG_CONFIG_MASK,
+				 BQ24190_REG_POC_CHG_CONFIG_SHIFT,
+				 BQ24190_REG_POC_CHG_CONFIG_CHARGE);
+
+	pm_runtime_mark_last_busy(bdi->dev);
+	pm_runtime_put_autosuspend(bdi->dev);
+
+	return ret;
+}
+
+static int bq24190_vbus_is_enabled(struct regulator_dev *dev)
+{
+	struct bq24190_dev_info *bdi = rdev_get_drvdata(dev);
+	int ret;
+	u8 val;
+
+	ret = pm_runtime_get_sync(bdi->dev);
+	if (ret < 0) {
+		dev_warn(bdi->dev, "pm_runtime_get failed: %i\n", ret);
+		pm_runtime_put_noidle(bdi->dev);
+		return ret;
+	}
+
+	ret = bq24190_read_mask(bdi, BQ24190_REG_POC,
+				BQ24190_REG_POC_CHG_CONFIG_MASK,
+				BQ24190_REG_POC_CHG_CONFIG_SHIFT, &val);
+
+	pm_runtime_mark_last_busy(bdi->dev);
+	pm_runtime_put_autosuspend(bdi->dev);
+
+	return ret ? ret : val == BQ24190_REG_POC_CHG_CONFIG_OTG;
+}
+
+static const struct regulator_ops bq24190_vbus_ops = {
+	.enable = bq24190_vbus_enable,
+	.disable = bq24190_vbus_disable,
+	.is_enabled = bq24190_vbus_is_enabled,
+};
+
+static const struct regulator_desc bq24190_vbus_desc = {
+	.name = "regulator-bq24190-usb-vbus",
+	.type = REGULATOR_VOLTAGE,
+	.owner = THIS_MODULE,
+	.ops = &bq24190_vbus_ops,
+	.fixed_uV = 5000000,
+	.n_voltages = 1,
+};
+
+static const struct regulator_init_data bq24190_vbus_init_data = {
+	.constraints = {
+		.valid_ops_mask = REGULATOR_CHANGE_STATUS,
+	},
+};
+
+static int bq24190_register_vbus_regulator(struct bq24190_dev_info *bdi)
+{
+	struct regulator_config cfg = { };
+	struct regulator_dev *reg;
+	int ret = 0;
+
+	cfg.dev = bdi->dev;
+	cfg.init_data = &bq24190_vbus_init_data;
+	cfg.driver_data = bdi;
+	reg = devm_regulator_register(bdi->dev, &bq24190_vbus_desc, &cfg);
+	if (IS_ERR(reg)) {
+		ret = PTR_ERR(reg);
+		dev_err(bdi->dev, "Can't register regulator: %d\n", ret);
+	}
+
+	return ret;
+}
+#else
+static int bq24190_register_vbus_regulator(struct bq24190_dev_info *bdi)
+{
+	return 0;
+}
 #endif
 
 /*
@@ -1529,6 +1646,10 @@ static int bq24190_probe(struct i2c_client *client,
 		dev_err(dev, "pm_runtime_get failed: %i\n", ret);
 		goto out_pmrt;
 	}
+
+	ret = bq24190_register_vbus_regulator(bdi);
+	if (ret < 0)
+		goto out_pmrt;
 
 	ret = bq24190_hw_init(bdi);
 	if (ret < 0) {
