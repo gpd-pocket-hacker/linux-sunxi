@@ -1707,6 +1707,28 @@ static int fusb302_probe(struct i2c_client *client,
 			return -EPROBE_DEFER;
 	}
 
+	/*
+	 * Devicetree platforms should get vbus from their dt-node.
+	 * On ACPI platforms, we need to get the vbus by a system wide unique
+	 * name, which is set in a device prop by the platform code.
+	 */
+	if (device_property_read_string(dev, "fcs,vbus-regulator-name",
+					&name) == 0) {
+		/*
+		 * Use regulator_get_optional so that we can detect if we need
+		 * to defer the probe rather then getting the dummy-regulator.
+		 */
+		chip->vbus = devm_regulator_get_optional(dev, name);
+		if (IS_ERR(chip->vbus)) {
+			ret = PTR_ERR(chip->vbus);
+			return (ret == -ENODEV) ? -EPROBE_DEFER : ret;
+		}
+	} else {
+		chip->vbus = devm_regulator_get(dev, "vbus");
+		if (IS_ERR(chip->vbus))
+			return PTR_ERR(chip->vbus);
+	}
+
 	ret = tcpm_register_psy(chip->dev, &chip->tcpc_dev,
 				"fusb302-typec-source");
 	if (ret < 0)
@@ -1723,12 +1745,6 @@ static int fusb302_probe(struct i2c_client *client,
 	}
 	INIT_DELAYED_WORK(&chip->bc_lvl_handler, fusb302_bc_lvl_handler_work);
 	init_tcpc_dev(&chip->tcpc_dev);
-
-	chip->vbus = devm_regulator_get(chip->dev, "vbus");
-	if (IS_ERR(chip->vbus)) {
-		ret = PTR_ERR(chip->vbus);
-		goto destroy_workqueue;
-	}
 
 	if (client->irq) {
 		chip->gpio_int_n_irq = client->irq;
