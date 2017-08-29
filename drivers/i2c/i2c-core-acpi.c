@@ -179,6 +179,14 @@ static void i2c_acpi_register_device(struct i2c_adapter *adapter,
 	adev->power.flags.ignore_parent = true;
 	acpi_device_set_enumerated(adev);
 
+	printk(KERN_ERR "i2c_acpi_register_device for %s(%s)\n",
+		acpi_device_hid(adev),acpi_device_bid(adev));
+
+	if (acpi_device_hid(adev) && !strcmp(acpi_device_hid(adev),"MAX17047")) {
+		printk(KERN_ERR "not instatiating max17047, leaving to cht device to do that\n");
+		return;
+	}
+
 	if (!i2c_new_device(adapter, info)) {
 		adev->power.flags.ignore_parent = false;
 		dev_err(&adapter->dev,
@@ -405,6 +413,8 @@ struct i2c_client *i2c_acpi_new_device(struct device *dev, int index,
 	adapter = i2c_acpi_find_adapter_by_handle(lookup.adapter_handle);
 	if (!adapter)
 		return NULL;
+
+	printk(KERN_ERR "i2c_acpi_new_device for %s index %d resolved to adapter %s addr 0x%x\n",dev_name(dev),index,adapter->name,info->addr);
 
 	return i2c_new_device(adapter, info);
 }

@@ -1119,7 +1119,7 @@ static enum power_supply_property bq24190_charger_properties[] = {
 };
 
 static char *bq24190_charger_supplied_to[] = {
-	"main-battery",
+	"max170xx_battery",
 };
 
 static const struct power_supply_desc bq24190_charger_desc = {
