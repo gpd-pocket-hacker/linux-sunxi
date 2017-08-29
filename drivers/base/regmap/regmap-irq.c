@@ -388,10 +388,25 @@ exit:
 		return IRQ_NONE;
 }
 
+static void regmap_irq_unmap(struct irq_domain *h, unsigned int virq)
+{
+	struct irq_data *idata;
+
+	irq_set_nested_thread(virq, 0);
+
+	irq_set_chip(virq, NULL);
+	irq_set_chip_data(virq, NULL);
+
+	idata = irq_get_irq_data(virq);
+        idata->parent_data = NULL;
+}
+
+
 static int regmap_irq_map(struct irq_domain *h, unsigned int virq,
 			  irq_hw_number_t hw)
 {
 	struct regmap_irq_chip_data *data = h->host_data;
+	struct irq_data *idata;
 
 	irq_set_chip_data(virq, data);
 	irq_set_chip(virq, &data->irq_chip);
@@ -399,11 +414,15 @@ static int regmap_irq_map(struct irq_domain *h, unsigned int virq,
 	irq_set_parent(virq, data->irq);
 	irq_set_noprobe(virq);
 
+	idata = irq_get_irq_data(virq);
+        idata->parent_data = irq_get_irq_data(data->irq);
+
 	return 0;
 }
 
 static const struct irq_domain_ops regmap_domain_ops = {
 	.map	= regmap_irq_map,
+	.unmap	= regmap_irq_unmap,
 	.xlate	= irq_domain_xlate_onetwocell,
 };
 
@@ -627,6 +646,7 @@ int regmap_add_irq_chip(struct regmap *map, int irq, int irq_flags,
 		}
 	}
 
+
 	if (irq_base)
 		d->domain = irq_domain_add_legacy(map->dev->of_node,
 						  chip->num_irqs, irq_base, 0,
@@ -635,6 +655,18 @@ int regmap_add_irq_chip(struct regmap *map, int irq, int irq_flags,
 		d->domain = irq_domain_add_linear(map->dev->of_node,
 						  chip->num_irqs,
 						  &regmap_domain_ops, d);
+#if 0
+	struct irq_data *parent_data;
+	parent_data = irq_get_irq_data(irq);
+		d->domain = irq_domain_add_hierarchy(parent_data->domain, 0,
+						  chip->num_irqs,
+						  map->dev->of_node,
+						  &regmap_domain_ops, d);
+
+		printk(KERN_ERR "MISERY 3: chip %s d->domain %p parent_data->domain %p\n",
+			chip->name,d->domain,parent_data->domain);
+#endif
+
 	if (!d->domain) {
 		dev_err(map->dev, "Failed to create IRQ domain\n");
 		ret = -ENOMEM;

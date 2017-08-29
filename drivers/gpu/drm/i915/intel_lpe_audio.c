@@ -203,6 +203,7 @@ static bool lpe_audio_detect(struct drm_i915_private *dev_priv)
 static int lpe_audio_setup(struct drm_i915_private *dev_priv)
 {
 	int ret;
+	struct irq_data *idata;
 
 	dev_priv->lpe_audio.irq = irq_alloc_desc(0);
 	if (dev_priv->lpe_audio.irq < 0) {
@@ -215,6 +216,9 @@ static int lpe_audio_setup(struct drm_i915_private *dev_priv)
 	DRM_DEBUG("irq = %d\n", dev_priv->lpe_audio.irq);
 
 	ret = lpe_audio_irq_init(dev_priv);
+
+	idata = irq_get_irq_data(dev_priv->lpe_audio.irq);
+	idata->parent_data = irq_get_irq_data(dev_priv->drm.pdev->irq);
 
 	if (ret) {
 		DRM_ERROR("Failed to initialize irqchip for lpe audio: %d\n",

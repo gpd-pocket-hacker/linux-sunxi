@@ -893,10 +893,19 @@ static void virq_debug_show_one(struct seq_file *m, struct irq_desc *desc)
 	data = &desc->irq_data;
 
 	while (domain) {
-		unsigned int irq = data->irq;
-		unsigned long hwirq = data->hwirq;
+		unsigned int irq;
+		unsigned long hwirq;
 		struct irq_chip *chip;
 		bool direct;
+
+		if (!data) {
+			seq_printf(m, "(data null)");
+			break;	
+		}
+	
+		
+		irq = data->irq;
+		hwirq  = data->hwirq;
 
 		if (data == &desc->irq_data)
 			seq_printf(m, "%5d  ", irq);

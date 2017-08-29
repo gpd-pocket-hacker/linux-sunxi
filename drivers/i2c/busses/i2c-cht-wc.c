@@ -227,6 +227,7 @@ static int cht_wc_i2c_adap_i2c_probe(struct platform_device *pdev)
 		.addr = 0x6b,
 		.properties = bq24190_props,
 	};
+	struct irq_data *idata;
 	int ret, irq;
 
 	irq = platform_get_irq(pdev, 0);
@@ -271,6 +272,9 @@ static int cht_wc_i2c_adap_i2c_probe(struct platform_device *pdev)
 		ret = -ENOMEM;
 		goto remove_irq_domain;
 	}
+
+	idata = irq_get_irq_data(adap->client_irq);
+	idata->parent_data = irq_get_irq_data(irq);
 
 	irq_set_chip_data(adap->client_irq, adap);
 	irq_set_chip_and_handler(adap->client_irq, &adap->irqchip,
