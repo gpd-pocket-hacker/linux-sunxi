@@ -512,6 +512,8 @@ static int bq24190_vbus_enable(struct regulator_dev *dev)
 	struct bq24190_dev_info *bdi = rdev_get_drvdata(dev);
 	int ret;
 
+	printk(KERN_ERR "bq24190_vbus_enable\n");
+
 	ret = pm_runtime_get_sync(bdi->dev);
 	if (ret < 0) {
 		dev_warn(bdi->dev, "pm_runtime_get failed: %i\n", ret);
@@ -535,6 +537,7 @@ static int bq24190_vbus_disable(struct regulator_dev *dev)
 	struct bq24190_dev_info *bdi = rdev_get_drvdata(dev);
 	int ret;
 
+	printk(KERN_ERR "bq24190_vbus_disable\n");
 	ret = pm_runtime_get_sync(bdi->dev);
 	if (ret < 0) {
 		dev_warn(bdi->dev, "pm_runtime_get failed: %i\n", ret);
@@ -1490,7 +1493,10 @@ static void bq24190_extcon_work(struct work_struct *work)
 	struct bq24190_dev_info *bdi =
 		container_of(work, struct bq24190_dev_info, extcon_work.work);
 	int error, iinlim = 0;
+	extern int fusb302_max_charge_current_ua;
 	/* u8 v; */
+
+	printk(KERN_ERR "bq24190_extcon_work: poked\n");
 
 	error = pm_runtime_get_sync(bdi->dev);
 	if (error < 0) {
@@ -1507,6 +1513,16 @@ static void bq24190_extcon_work(struct work_struct *work)
 	else if (extcon_get_state(bdi->extcon, EXTCON_CHG_USB_DCP) == 1)
 		iinlim = 2000000;
 
+	printk(KERN_ERR "bq24190_extcon_work: USB2 detection puts current limit at %d uA\n",iinlim);
+	printk(KERN_ERR "bq24190_extcon_work: USB-C detection puts current limit at %d uA\n",fusb302_max_charge_current_ua);
+
+	if (iinlim <  fusb302_max_charge_current_ua)
+			iinlim = fusb302_max_charge_current_ua;
+		
+
+
+	printk(KERN_ERR "bq24190_extcon_work: current limit for charging set to %d uA\n",iinlim);
+
 	if (iinlim) {
 		error = bq24190_set_field_val(bdi, BQ24190_REG_ISC,
 					      BQ24190_REG_ISC_IINLIM_MASK,
@@ -1520,10 +1536,13 @@ static void bq24190_extcon_work(struct work_struct *work)
 
 #if 0
 	/* if no charger found and in USB host mode, set OTG 5V boost, else normal */
-	if (!iinlim && extcon_get_state(bdi->extcon, EXTCON_USB_HOST) == 1)
+	if (!iinlim && extcon_get_state(bdi->extcon, EXTCON_USB_HOST) == 1) {
+		printk(KERN_ERR "no usb2 charging protocol found - going for OTG\n");
 		v = BQ24190_REG_POC_CHG_CONFIG_OTG;
-	else
+	} else {
+		printk(KERN_ERR "usb2 charging protocol found - going for charging\n");
 		v = BQ24190_REG_POC_CHG_CONFIG_CHARGE;
+	}
 
 	error = bq24190_write_mask(bdi, BQ24190_REG_POC,
 				   BQ24190_REG_POC_CHG_CONFIG_MASK,

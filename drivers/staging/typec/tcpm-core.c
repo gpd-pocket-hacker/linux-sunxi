@@ -383,6 +383,7 @@ static void _tcpm_log(struct tcpm_port *port, const char *fmt, va_list args)
 	}
 
 	vsnprintf(tmpbuffer, sizeof(tmpbuffer), fmt, args);
+	//printk(KERN_ERR "tcpm: %s\n",tmpbuffer);
 
 	mutex_lock(&port->logbuffer_lock);
 
@@ -675,6 +676,7 @@ static int tcpm_set_current_limit(struct tcpm_port *port, u32 max_ma, u32 mv)
 	int ret = -EOPNOTSUPP;
 
 	tcpm_log(port, "Setting voltage/current limit %u mV %u mA", mv, max_ma);
+	printk(KERN_ERR "Setting voltage/current limit %u mV %u mA", mv, max_ma);
 
 	if (port->tcpc->set_current_limit)
 		ret = port->tcpc->set_current_limit(port->tcpc, max_ma, mv);

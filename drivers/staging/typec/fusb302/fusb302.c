@@ -40,6 +40,7 @@
 #include "fusb302_reg.h"
 #include "../tcpm.h"
 #include "../pd.h"
+#include "../pi3usb30532.h"
 
 /*
  * When the device is SNK, BC_LVL interrupt is used to monitor cc pins
@@ -159,6 +160,7 @@ static void _fusb302_log(struct fusb302_chip *chip, const char *fmt,
 	}
 
 	vsnprintf(tmpbuffer, sizeof(tmpbuffer), fmt, args);
+	//printk(KERN_ERR "fusb302: %s\n",tmpbuffer);
 
 	mutex_lock(&chip->logbuffer_lock);
 
@@ -825,6 +827,8 @@ static int tcpm_set_vbus(struct tcpc_dev *dev, bool on, bool charge)
 						 tcpc_dev);
 	int ret = 0;
 
+	printk(KERN_ERR "tcpm_set_vbus on=%d charge=%d\n",on ,charge);
+
 	mutex_lock(&chip->lock);
 	if (chip->vbus_on == on) {
 		fusb302_log(chip, "vbus is already %s", on ? "On" : "Off");
@@ -1185,6 +1189,16 @@ static const struct tcpc_config fusb302_tcpc_config = {
 	.alt_modes = NULL,
 };
 
+
+int fusb302_max_charge_current_ua;
+
+static int fusb302_set_current_limit(struct tcpc_dev *tcpc, u32 max_ma, u32 mv)
+{
+	fusb302_max_charge_current_ua=max_ma*1000;
+	return tcpm_set_current_limit_psy(tcpc,max_ma,mv);
+}
+
+
 static void init_tcpc_dev(struct tcpc_dev *fusb302_tcpc_dev)
 {
 	fusb302_tcpc_dev->config = &fusb302_tcpc_config;
@@ -1197,7 +1211,7 @@ static void init_tcpc_dev(struct tcpc_dev *fusb302_tcpc_dev)
 	fusb302_tcpc_dev->set_polarity = tcpm_set_polarity;
 	fusb302_tcpc_dev->set_vconn = tcpm_set_vconn;
 	fusb302_tcpc_dev->set_vbus = tcpm_set_vbus;
-	fusb302_tcpc_dev->set_current_limit = tcpm_set_current_limit_psy;
+	fusb302_tcpc_dev->set_current_limit = fusb302_set_current_limit;
 	fusb302_tcpc_dev->set_pd_rx = tcpm_set_pd_rx;
 	fusb302_tcpc_dev->set_roles = tcpm_set_roles;
 	fusb302_tcpc_dev->start_drp_toggling = tcpm_start_drp_toggling;
@@ -1718,6 +1732,7 @@ static int fusb302_probe(struct i2c_client *client,
 		 * Use regulator_get_optional so that we can detect if we need
 		 * to defer the probe rather then getting the dummy-regulator.
 		 */
+		printk(KERN_ERR "FUSB302 found vbus regulator called %s\n",name);
 		chip->vbus = devm_regulator_get_optional(dev, name);
 		if (IS_ERR(chip->vbus)) {
 			ret = PTR_ERR(chip->vbus);
@@ -1745,6 +1760,8 @@ static int fusb302_probe(struct i2c_client *client,
 	}
 	INIT_DELAYED_WORK(&chip->bc_lvl_handler, fusb302_bc_lvl_handler_work);
 	init_tcpc_dev(&chip->tcpc_dev);
+
+	chip->tcpc_dev.mux = pi3usb30532_mux(0);
 
 	if (client->irq) {
 		chip->gpio_int_n_irq = client->irq;
